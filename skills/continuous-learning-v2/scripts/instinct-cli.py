@@ -7,6 +7,8 @@ Commands:
   import   - Import instincts from file or URL
   export   - Export instincts to file
   evolve   - Cluster instincts into skills/commands/agents
+  decay    - Apply confidence decay to stale instincts
+  learn    - Analyze observations and extract instinct candidates
 """
 
 import argparse
@@ -29,10 +31,14 @@ INSTINCTS_DIR = HOMUNCULUS_DIR / "instincts"
 PERSONAL_DIR = INSTINCTS_DIR / "personal"
 INHERITED_DIR = INSTINCTS_DIR / "inherited"
 EVOLVED_DIR = HOMUNCULUS_DIR / "evolved"
+ARCHIVED_DIR = INSTINCTS_DIR / "archived"
 OBSERVATIONS_FILE = HOMUNCULUS_DIR / "observations.jsonl"
 
 # Ensure directories exist
-for d in [PERSONAL_DIR, INHERITED_DIR, EVOLVED_DIR / "skills", EVOLVED_DIR / "commands", EVOLVED_DIR / "agents"]:
+for d in [
+    PERSONAL_DIR, INHERITED_DIR, ARCHIVED_DIR,
+    EVOLVED_DIR / "skills", EVOLVED_DIR / "commands", EVOLVED_DIR / "agents",
+]:
     d.mkdir(parents=True, exist_ok=True)
 
 
@@ -556,6 +562,14 @@ def main():
     evolve_parser = subparsers.add_parser('evolve', help='Analyze and evolve instincts')
     evolve_parser.add_argument('--generate', action='store_true', help='Generate evolved structures')
 
+    # Decay
+    decay_parser = subparsers.add_parser('decay', help='Apply confidence decay')
+    decay_parser.add_argument('--dry-run', action='store_true', help='Preview without applying')
+
+    # Learn
+    learn_parser = subparsers.add_parser('learn', help='Analyze observations and extract instincts')
+    learn_parser.add_argument('--execute', action='store_true', help='Write instinct files')
+
     args = parser.parse_args()
 
     if args.command == 'status':
@@ -566,6 +580,22 @@ def main():
         return cmd_export(args)
     elif args.command == 'evolve':
         return cmd_evolve(args)
+    elif args.command == 'decay':
+        from instinct_decay import run_decay
+        return run_decay(
+            personal_dir=PERSONAL_DIR,
+            archived_dir=ARCHIVED_DIR,
+            parse_fn=parse_instinct_file,
+            dry_run=args.dry_run,
+        )
+    elif args.command == 'learn':
+        from instinct_learn import run_learn
+        return run_learn(
+            observations_path=OBSERVATIONS_FILE,
+            existing_instincts=load_all_instincts(),
+            personal_dir=PERSONAL_DIR,
+            execute=args.execute,
+        )
     else:
         parser.print_help()
         return 1
